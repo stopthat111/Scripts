@@ -26,7 +26,7 @@ MATRIX_HOMESERVER = "https://matrix.org"
 MATRIX_USERNAME = "@yourai_bot:matrix.org"
 MATRIX_PASSWORD = "yourpassword"
 MATRIX_ROOM_ID = "!yourroomid:matrix.org"
-UNUSUAL_WHALES_API = "your_unusual_whales_api"
+SEC_EDGAR_API = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK="
 DB_FILE = "C:\\Users\\Public\\politician_trades.db"
 MIN_TRADE_AMOUNT = 100000  # Filter trades below $100K
 VOLUME_SURGE_THRESHOLD = 2  # Volume surge threshold (x average volume)
@@ -69,14 +69,18 @@ class MatrixBot:
         await self.client.logout()
         self.logged_in = False
 
-# Fetch Unusual Trades
+# Fetch Unusual Trades from SEC EDGAR API
 def fetch_unusual_trades():
     try:
-        url = f"https://api.unusualwhales.com/v1/options?api_key={UNUSUAL_WHALES_API}"
-        response = requests.get(url)
-        response.raise_for_status()
-        trades = response.json()
-        return [t for t in trades if t["premium"] >= MIN_TRADE_AMOUNT]
+        trades = []
+        for stock in WATCHLIST:
+            url = f"{SEC_EDGAR_API}{stock}&owner=only&count=10"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            if "FORM TYPE" in response.text:
+                trades.append({"ticker": stock, "transaction_type": "Unknown", "premium": MIN_TRADE_AMOUNT})
+        return trades
     except requests.exceptions.RequestException as e:
         print(f"Error fetching unusual trades: {e}")
         return []
