@@ -22,11 +22,17 @@ for tool in required_tools:
         exit(1)
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="Initial Domain/IP Scanning Tool")
-parser.add_argument('--domain', help='Domain to scan')
-parser.add_argument('--ip', help='IP address to scan')
-parser.add_argument('--scan', choices=['nmap', 'dnsrecon', 'dnsenum', 'whois', 'all'],
-                    default='all', help='Select the scan type(s)')
+parser = argparse.ArgumentParser(
+    description="Initial Domain/IP Scanning Tool - This tool runs a series of scans on a given domain or IP, including Nmap, DNSRecon, DNSenum, and more. Use the flags to specify which scans to perform."
+)
+
+parser.add_argument('--domain', help='Domain to scan (e.g., example.com)')
+parser.add_argument('--ip', help='IP address to scan (e.g., 192.168.1.1)')
+parser.add_argument('--scan', choices=['nmap', 'dnsrecon', 'dnsenum', 'whois', 'sslscan', 'nikto', 'all'],
+                    default='all', help='Specify which scan to perform. Options are: '
+                                         '"nmap" (Nmap scan), "dnsrecon" (DNSRecon scan), "dnsenum" (DNSenum scan), '
+                                         '"whois" (WhoIs lookup), "sslscan" (SSL/TLS scan), "nikto" (Nikto vulnerability scan), or "all" (all scans).')
+
 args = parser.parse_args()
 
 # Prompt for domain and IP if not provided via arguments
