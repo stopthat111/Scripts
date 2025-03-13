@@ -1,15 +1,20 @@
 import pyautogui
 import time
 
-# Define the coordinates for the clicks (replace with your specific coordinates)
-# Example: (x1, y1) for the first position, (x2, y2) for the second position
-position1 = (4134, 263)  # First position (replace with your coordinates)
-position2 = (5113, 273)  # Second position (replace with your coordinates)
+# Function to prompt the user to click at a position
+def get_click_position(prompt):
+    input(f"{prompt} - Click on the screen and press Enter when done.")
+    return pyautogui.position()
+
+# Prompt the user to click to set the positions
+print("Script is starting. Please click on the desired locations.")
+position1 = get_click_position("First position (e.g., top-left corner)")
+position2 = get_click_position("Second position (e.g., bottom-right corner)")
 
 # Define the delay between clicks
 delay = 2  # 2 seconds
 
-print("Script is starting. Press Ctrl+C to stop.")
+print("Positions have been set. Script is now running. Press Ctrl+C to stop.")
 
 try:
     while True:
