@@ -7,7 +7,6 @@ from selenium.webdriver.chrome.options import Options
 import time
 import logging
 from fake_useragent import UserAgent
-from itertools import cycle
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -22,12 +21,6 @@ options.add_argument("--disable-blink-features=AutomationControlled")
 ua = UserAgent()
 options.add_argument(f'user-agent={ua.random}')
 
-# Proxy Support (Add your proxies here)
-proxies = cycle([
-    'http://proxy1:port',
-    'http://proxy2:port'
-])
-
 # Initialize WebDriver
 driver = webdriver.Chrome(options=options)
 
@@ -36,12 +29,19 @@ email_pattern = r'[\w\.-]+@[\w\.-]+'
 
 
 # -------------------------
-# 1. Google Dorks Search (with Error Handling)
+# 1. Search Engine Queries (Google, Bing, DuckDuckGo)
 # -------------------------
-def google_dorks_search(domain):
+def search_engine_query(domain, engine):
     try:
-        search_query = f"site:{domain} email"
-        search_url = f'https://www.google.com/search?q={search_query}'
+        if engine == 'google':
+            search_url = f'https://www.google.com/search?q=site:{domain} email'
+        elif engine == 'bing':
+            search_url = f'https://www.bing.com/search?q=site:{domain} email'
+        elif engine == 'duckduckgo':
+            search_url = f'https://duckduckgo.com/?q=site:{domain} email'
+        else:
+            return set()
+        
         driver.get(search_url)
         time.sleep(2)
         
@@ -57,12 +57,12 @@ def google_dorks_search(domain):
         
         return email_addresses
     except Exception as e:
-        logging.error(f"Error during Google Dorks search: {e}")
+        logging.error(f"Error during {engine.capitalize()} search: {e}")
         return set()
 
 
 # -------------------------
-# 2. Recursive Web Scraping with Proxy Support
+# 2. Recursive Web Scraping
 # -------------------------
 def scrape_emails_from_website(url, depth=2):
     emails = set()
@@ -73,9 +73,8 @@ def scrape_emails_from_website(url, depth=2):
             return
         visited_urls.add(current_url)
         try:
-            proxy = next(proxies)
             headers = {'User-Agent': ua.random}
-            response = requests.get(current_url, headers=headers, proxies={'http': proxy, 'https': proxy}, timeout=10)
+            response = requests.get(current_url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -95,17 +94,22 @@ def scrape_emails_from_website(url, depth=2):
 # -------------------------
 # Main Execution Flow
 # -------------------------
-logging.info("Starting Google Dorks search...")
-emails_from_dorks = google_dorks_search(domain)
-logging.info(f"Found {len(emails_from_dorks)} email addresses via Google Dorks: {emails_from_dorks}")
+logging.info("Starting search engine queries...")
+
+google_emails = search_engine_query(domain, 'google')
+bing_emails = search_engine_query(domain, 'bing')
+duckduckgo_emails = search_engine_query(domain, 'duckduckgo')
+
+all_search_emails = google_emails.union(bing_emails).union(duckduckgo_emails)
+logging.info(f"Found {len(all_search_emails)} email addresses from search engines: {all_search_emails}")
 
 website_url = f'http://{domain}'
-logging.info("Starting recursive website scraping with proxy rotation...")
+logging.info("Starting recursive website scraping...")
 emails_from_website = scrape_emails_from_website(website_url)
 logging.info(f"Found {len(emails_from_website)} email addresses from website scraping: {emails_from_website}")
 
 # Combine results
-all_emails = emails_from_dorks.union(emails_from_website)
+all_emails = all_search_emails.union(emails_from_website)
 logging.info(f"Total found email addresses: {all_emails}")
 
 # Save to file
