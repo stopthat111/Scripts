@@ -49,24 +49,8 @@ def google_dorks_search(domain):
 
     return email_addresses
 
-
 # -------------------------
-# 2. LinkedIn Scraping (using Selenium)
-# -------------------------
-
-def get_linkedin_email(profile_url):
-    driver.get(profile_url)
-    time.sleep(3)  # Wait for the page to load
-    try:
-        # LinkedIn contact email is often found under the 'contact info' section
-        email = driver.find_element(By.CSS_SELECTOR, '.pv-contact-info__contact-link').text
-        return email
-    except:
-        return None
-
-
-# -------------------------
-# 3. BeautifulSoup Web Scraping (direct website scraping)
+# 2. BeautifulSoup Web Scraping (direct website scraping)
 # -------------------------
 
 def scrape_emails_from_website(url):
@@ -89,17 +73,8 @@ logging.info("Starting Google Dorks search...")
 emails_from_dorks = google_dorks_search(domain)
 logging.info(f"Found {len(emails_from_dorks)} email addresses via Google Dorks: {emails_from_dorks}")
 
-# 2. LinkedIn profile scraping (replace with actual profile URL)
-# For demonstration purposes, you can replace the LinkedIn profile URL
-linkedin_profile_url = 'https://www.linkedin.com/in/exampleprofile/'
-logging.info("Starting LinkedIn scraping...")
-linkedin_email = get_linkedin_email(linkedin_profile_url)
-if linkedin_email:
-    logging.info(f"Found LinkedIn email: {linkedin_email}")
-else:
-    logging.info("No email found on LinkedIn profile.")
 
-# 3. Scrape the main domain website for email addresses
+# 2. Scrape the main domain website for email addresses
 website_url = f'http://{domain}'  # Replace with specific URL if needed
 logging.info("Starting website scraping...")
 emails_from_website = scrape_emails_from_website(website_url)
