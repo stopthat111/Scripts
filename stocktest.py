@@ -1,6 +1,6 @@
 import asyncio
 import requests
-import talib
+from finta import TA
 import pandas as pd
 from textblob import TextBlob
 from sklearn.ensemble import RandomForestClassifier
@@ -82,16 +82,22 @@ def update_watchlist():
     return list(set(fetch_fortune_500() + fetch_nasdaq_symbols()))
 
 def fetch_stock_data(stock_symbol):
-    return yf.download(stock_symbol, period="1y", interval="1d")
+    data = yf.download(stock_symbol, period="1y", interval="1d")
+    return data.rename(columns=str.lower)
 
 def train_ml_model(stock_symbol):
-    data = yf.download(stock_symbol, period="1y", interval="1d")
-    data['RSI'] = talib.RSI(data['Close'].values, timeperiod=14)
-    data['MACD'], data['Signal'], _ = talib.MACD(data['Close'].values, fastperiod=12, slowperiod=26, signalperiod=9)
-    data['Price Change'] = data['Close'].pct_change().shift(-1)
+    data = yf.download(stock_symbol, period="1y", interval="1d").rename(columns=str.lower)
+
+    data['RSI'] = TA.RSI(data)
+    macd = TA.MACD(data)
+    data['MACD'] = macd['MACD']
+    data['Signal'] = macd['SIGNAL']
+    data['Price Change'] = data['close'].pct_change().shift(-1)
     data.dropna(inplace=True)
+
     features = data[['RSI', 'MACD', 'Signal']]
     target = np.where(data['Price Change'] > 0, 1, 0)
+
     X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
     model = RandomForestClassifier()
     model.fit(X_train, y_train)
@@ -100,11 +106,10 @@ def train_ml_model(stock_symbol):
     return model
 
 def get_technical_indicators(stock_data):
-    close_prices = stock_data['Close'].values
-    sma_short = talib.SMA(close_prices, timeperiod=SMA_SHORT_PERIOD)
-    sma_long = talib.SMA(close_prices, timeperiod=SMA_LONG_PERIOD)
-    upper_band, _, lower_band = talib.BBANDS(close_prices, timeperiod=20, nbdevup=BOLLINGER_BAND_STDDEV, nbdevdn=BOLLINGER_BAND_STDDEV)
-    return sma_short, sma_long, upper_band, lower_band
+    stock_data['SMA_SHORT'] = TA.SMA(stock_data, SMA_SHORT_PERIOD)
+    stock_data['SMA_LONG'] = TA.SMA(stock_data, SMA_LONG_PERIOD)
+    bb = TA.BBANDS(stock_data)
+    return stock_data['SMA_SHORT'], stock_data['SMA_LONG'], bb['BB_UPPER'], bb['BB_LOWER']
 
 async def monitor_stocks():
     setup_database()
@@ -118,20 +123,20 @@ async def monitor_stocks():
             if stock_data is not None:
                 sentiment_score = get_news_sentiment(stock_symbol)
                 sma_short, sma_long, upper_band, lower_band = get_technical_indicators(stock_data)
-                latest_price = stock_data['Close'].iloc[-1]
+                latest_price = stock_data['close'].iloc[-1]
 
                 for trade in fetch_unusual_trades():
                     if trade["premium"] >= OPTION_BET_THRESHOLD:
                         print(f"🚨 BIG OPTION BET: {trade['ticker']} - {trade['transaction_type']} - ${trade['premium']}")
 
-                if sma_short[-1] > sma_long[-1]:
+                if sma_short.iloc[-1] > sma_long.iloc[-1]:
                     print(f"{stock_symbol}: Bullish crossover.")
-                elif sma_short[-1] < sma_long[-1]:
+                elif sma_short.iloc[-1] < sma_long.iloc[-1]:
                     print(f"{stock_symbol}: Bearish crossover.")
 
-                if latest_price > upper_band[-1]:
+                if latest_price > upper_band.iloc[-1]:
                     print(f"{stock_symbol}: Overbought.")
-                elif latest_price < lower_band[-1]:
+                elif latest_price < lower_band.iloc[-1]:
                     print(f"{stock_symbol}: Oversold.")
 
                 if sentiment_score > 0.1:
@@ -139,7 +144,7 @@ async def monitor_stocks():
                 elif sentiment_score < -0.1:
                     print(f"{stock_symbol}: Negative Sentiment.")
 
-                features = np.array([stock_data['RSI'][-1], stock_data['MACD'][-1], stock_data['Signal'][-1]]).reshape(1, -1)
+                features = np.array([stock_data['RSI'].iloc[-1], stock_data['MACD'].iloc[-1], stock_data['Signal'].iloc[-1]]).reshape(1, -1)
                 prediction = models[stock_symbol].predict(features)
                 print(f"{stock_symbol}: {'Buy' if prediction == 1 else 'Sell'} Signal")
 
@@ -147,8 +152,8 @@ async def monitor_stocks():
                 stop_loss_price, take_profit_price = place_stop_loss_and_take_profit(stock_symbol, latest_price, position_size)
 
                 try:
-                    price_change_10min = (stock_data['Close'].iloc[-1] - stock_data['Close'].iloc[-11]) / stock_data['Close'].iloc[-11] * 100
-                    price_change_1hour = (stock_data['Close'].iloc[-1] - stock_data['Close'].iloc[-61]) / stock_data['Close'].iloc[-61] * 100
+                    price_change_10min = (stock_data['close'].iloc[-1] - stock_data['close'].iloc[-11]) / stock_data['close'].iloc[-11] * 100
+                    price_change_1hour = (stock_data['close'].iloc[-1] - stock_data['close'].iloc[-61]) / stock_data['close'].iloc[-61] * 100
                     if price_change_10min >= PRICE_SPIKE_10MIN:
                         print(f"🚨 {stock_symbol}: Price up {price_change_10min:.2f}% in 10 minutes")
                     if price_change_1hour >= PRICE_SPIKE_1HOUR:
