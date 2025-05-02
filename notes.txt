@@ -1,9 +1,1 @@
-ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ python3 apptest.py 
-Traceback (most recent call last):
-  File "/home/ryan/Desktop/apptest.py", line 13, in <module>
-    from stocktest import main  # Assumes main is an async def
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/ryan/Desktop/stocktest.py", line 5, in <module>
-    from textblob import TextBlob
-ModuleNotFoundError: No module named 'textblob'
-ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ 
+pip install textblob finta ta-lib yfinance scikit-learn pandas requests asyncio --break-system-packages
