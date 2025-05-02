@@ -1,9 +1,9 @@
-    ~/Desktop  python apptest.py                                                              ✔  22s  
-Traceback (most recent call last):
-  File "/home/ryan/Desktop/apptest.py", line 13, in <module>
-    from stocktest import main  # Assumes main is an async def
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/ryan/Desktop/stocktest.py", line 3, in <module>
-    import talib
-ModuleNotFoundError: No module named 'talib'
-    ~/Desktop                             
+cd /tmp
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+tar -xvzf ta-lib-0.4.0-src.tar.gz
+cd ta-lib
+./configure --prefix=/usr
+make
+sudo make install
+
+pip install TA-Lib
