@@ -1,21 +1,22 @@
-    /tmp/ta-lib    master  sudo pacman -U ta-lib-0.6.4-1-x86_64.pkg.tar.zst         ✔  ta-lib-env  
-loading packages...
-resolving dependencies...
-looking for conflicting packages...
+ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ pip install -r requirements.txt 
+error: externally-managed-environment
 
-Packages (1) ta-lib-0.6.4-1
+× This environment is externally managed
+╰─> To install Python packages system-wide, try apt install
+    python3-xyz, where xyz is the package you are trying to
+    install.
+    
+    If you wish to install a non-Debian-packaged Python package,
+    create a virtual environment using python3 -m venv path/to/venv.
+    Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
+    sure you have python3-full installed.
+    
+    If you wish to install a non-Debian packaged Python application,
+    it may be easiest to use pipx install xyz, which will manage a
+    virtual environment for you. Make sure you have pipx installed.
+    
+    See /usr/share/doc/python3.12/README.venv for more information.
 
-Total Installed Size:  1.15 MiB
-
-:: Proceed with installation? [Y/n] y
-(1/1) checking keys in keyring                                     [####################################] 100%
-(1/1) checking package integrity                                   [####################################] 100%
-(1/1) loading package files                                        [####################################] 100%
-(1/1) checking for file conflicts                                  [####################################] 100%
-error: failed to commit transaction (conflicting files)
-ta-lib: /usr/include/ta-lib/ta_abstract.h exists in filesystem
-ta-lib: /usr/include/ta-lib/ta_common.h exists in filesystem
-ta-lib: /usr/include/ta-lib/ta_defs.h exists in filesystem
-ta-lib: /usr/include/ta-lib/ta_func.h exists in filesystem
-ta-lib: /usr/include/ta-lib/ta_libc.h exists in filesystem
-Errors occurred, no packages were up
+note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+hint: See PEP 668 for the detailed specification.
+ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ 
