@@ -1,22 +1,8 @@
-ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ pip install -r requirements.txt 
-error: externally-managed-environment
-
-× This environment is externally managed
-╰─> To install Python packages system-wide, try apt install
-    python3-xyz, where xyz is the package you are trying to
-    install.
-    
-    If you wish to install a non-Debian-packaged Python package,
-    create a virtual environment using python3 -m venv path/to/venv.
-    Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
-    sure you have python3-full installed.
-    
-    If you wish to install a non-Debian packaged Python application,
-    it may be easiest to use pipx install xyz, which will manage a
-    virtual environment for you. Make sure you have pipx installed.
-    
-    See /usr/share/doc/python3.12/README.venv for more information.
-
-note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
-hint: See PEP 668 for the detailed specification.
+ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ sudo pip install -r requirements.txt --break-system-packages
+Collecting asyncio==3.4.3 (from -r requirements.txt (line 1))
+  Downloading asyncio-3.4.3-py3-none-any.whl.metadata (1.7 kB)
+Collecting requests==2.28.1 (from -r requirements.txt (line 2))
+  Downloading requests-2.28.1-py3-none-any.whl.metadata (4.6 kB)
+ERROR: Could not find a version that satisfies the requirement talib==0.4.0 (from versions: none)
+ERROR: No matching distribution found for talib==0.4.0
 ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ 
