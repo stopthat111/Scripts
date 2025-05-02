@@ -1,8 +1,21 @@
-   ~/Desktop  python apptest.py                                                     1 ✘  ta-lib-env  
-Traceback (most recent call last):
-  File "/home/ryan/Desktop/apptest.py", line 13, in <module>
-    from stocktest import main  # Assumes main is an async def
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/ryan/Desktop/stocktest.py", line 3, in <module>
-    import talib
-ModuleNotFoundError
+    /tmp/ta-lib    master  sudo pacman -U ta-lib-0.6.4-1-x86_64.pkg.tar.zst         ✔  ta-lib-env  
+loading packages...
+resolving dependencies...
+looking for conflicting packages...
+
+Packages (1) ta-lib-0.6.4-1
+
+Total Installed Size:  1.15 MiB
+
+:: Proceed with installation? [Y/n] y
+(1/1) checking keys in keyring                                     [####################################] 100%
+(1/1) checking package integrity                                   [####################################] 100%
+(1/1) loading package files                                        [####################################] 100%
+(1/1) checking for file conflicts                                  [####################################] 100%
+error: failed to commit transaction (conflicting files)
+ta-lib: /usr/include/ta-lib/ta_abstract.h exists in filesystem
+ta-lib: /usr/include/ta-lib/ta_common.h exists in filesystem
+ta-lib: /usr/include/ta-lib/ta_defs.h exists in filesystem
+ta-lib: /usr/include/ta-lib/ta_func.h exists in filesystem
+ta-lib: /usr/include/ta-lib/ta_libc.h exists in filesystem
+Errors occurred, no packages were up
