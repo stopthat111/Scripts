@@ -128,7 +128,7 @@ class StockApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Fortune 500 Stock Monitor")
-        self.geometry("900x600")
+        self.geometry("1000x700")  # Increased size to avoid button cut-off
 
         self.queue = queue.Queue()
         self.loop = asyncio.new_event_loop()
