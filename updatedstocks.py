@@ -163,6 +163,12 @@ class StockApp(tk.Tk):
     def setup_ui(self):
         ttk.Label(self, text="Monitoring Fortune 500 Stocks").pack(pady=10)
 
+        button_frame = ttk.Frame(self)
+        button_frame.pack(pady=5)
+
+        ttk.Button(button_frame, text="Start Monitoring", command=self.start_monitoring).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Stop Monitoring", command=self.stop_monitoring).pack(side=tk.LEFT, padx=5)
+
         top_frame = ttk.Frame(self)
         top_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -182,9 +188,6 @@ class StockApp(tk.Tk):
 
         self.text_area = ScrolledText(self, height=15)
         self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-
-        ttk.Button(self, text="Start Monitoring", command=self.start_monitoring).pack(pady=5)
-        ttk.Button(self, text="Stop Monitoring", command=self.stop_monitoring).pack(pady=5)
 
     def sort_table(self, column_name):
         if self.sort_by[0] == column_name:
