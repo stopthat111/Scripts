@@ -1,33 +1,16 @@
 Model training complete.
- * Serving Flask app 'updatedstocks'
- * Debug mode: on
-WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
- * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5000
- * Running on http://192.168.0.238:5000
-Press CTRL+C to quit
-Exception in thread Thread-21 (start_flask):
+Process Process-1:
 Traceback (most recent call last):
-  File "/usr/lib/python3.12/threading.py", line 1073, in _bootstrap_inner
+  File "/usr/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
     self.run()
-  File "/usr/lib/python3.12/threading.py", line 1010, in run
+  File "/usr/lib/python3.12/multiprocessing/process.py", line 108, in run
     self._target(*self._args, **self._kwargs)
-  File "/home/ryan/Desktop/updatedstocks.py", line 145, in start_flask
+  File "/home/ryan/Desktop/updatedstocks.py", line 144, in start_flask
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
-  File "/home/ryan/.local/lib/python3.12/site-packages/flask_socketio/__init__.py", line 660, in run
-    app.run(host=host, port=port, threaded=True,
-  File "/home/ryan/.local/lib/python3.12/site-packages/flask/app.py", line 662, in run
-    run_simple(t.cast(str, host), port, self, **options)
-  File "/home/ryan/.local/lib/python3.12/site-packages/werkzeug/serving.py", line 1115, in run_simple
-    run_with_reloader(
-  File "/home/ryan/.local/lib/python3.12/site-packages/werkzeug/_reloader.py", line 452, in run_with_reloader
-    signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
-  File "/usr/lib/python3.12/signal.py", line 58, in signal
-    handler = _signal.signal(_enum_to_int(signalnum), _enum_to_int(handler))
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: signal only works in main thread of the main interpreter
-Traceback (most recent call last):
-  File "/home/ryan/Desktop/updatedstocks.py", line 211, in <module>
-    monitor_thread = threading.Thread(target=start_async_loop, args=(loop, output_queue, models, watchlist), daemon=True)
-                                                                           ^^^^^^^^^^^^
-NameError: name 'output_queue' is not defined
+  File "/home/ryan/.local/lib/python3.12/site-packages/flask_socketio/__init__.py", line 650, in run
+    raise RuntimeError('The Werkzeug web server is not '
+RuntimeError: The Werkzeug web server is not designed to run in production. Pass allow_unsafe_werkzeug=True to the run() method to disable this error.
+/usr/lib/python3.12/threading.py:1010: RuntimeWarning: coroutine 'start_async_loop' was never awaited
+  self._target(*self._args, **self._kwargs)
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+
