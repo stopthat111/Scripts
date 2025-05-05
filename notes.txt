@@ -1,19 +1,14 @@
-* Debug mode: on
-WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
- * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5000
- * Running on http://192.168.0.238:5000
-Press CTRL+C to quit
+ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ python3 updatedstocks.py 
+YF.download() has changed argument auto_adjust default to True
 Exception in Tkinter callback
 Traceback (most recent call last):
   File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
     return self.func(*args)
            ^^^^^^^^^^^^^^^^
-  File "/home/ryan/Desktop/updatedstocks.py", line 196, in start_monitoring
-    self.text_area.insert(tk.END, "Monitoring started...\n")
-    ^^^^^^^^^^^^^^
-  File "/usr/lib/python3.12/tkinter/__init__.py", line 2430, in __getattr__
-    return getattr(self.tk, attr)
-           ^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: '_tkinter.tkapp' object has no attribute 'text_area'
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 861, in callit
+    func(*args)
+  File "/home/ryan/Desktop/updatedstocks.py", line 181, in update_from_queue
+    self.tree.item(self.tree_rows[symbol], values=(symbol, f"${price:.2f}", signal))
+                                                              ^^^^^^^^^^^
+TypeError: unsupported format string passed to Series.__format__
 
