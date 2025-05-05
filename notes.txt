@@ -1,2 +1,35 @@
-ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ head -1 all_tickers.csv 
-Symbol,Name,Last Sale,Net Change,% Change,Market Cap,Country,IPO Year,Volume,Sector,Industry
+import pandas as pd
+import json
+from thefuzz import fuzz
+
+# Load the Fortune 500 names
+with open("fortune500.json", "r") as f:
+    fortune_500 = json.load(f)
+
+# Load the ticker CSV
+df = pd.read_csv("all_tickers.csv")
+
+# Prepare output
+matched_companies = []
+
+for company in fortune_500:
+    best_match = None
+    highest_score = 0
+
+    for _, row in df.iterrows():
+        score = fuzz.token_sort_ratio(company, row["Name"])
+        if score > highest_score:
+            highest_score = score
+            best_match = row
+
+    if highest_score >= 80:  # Threshold can be adjusted
+        matched_companies.append({
+            "name": company,
+            "symbol": best_match["Symbol"]
+        })
+
+# Save to JSON
+with open("fortune500_companies.json", "w") as out_file:
+    json.dump(matched_companies, out_file, indent=2)
+
+print(f"Matched {len(matched_companies)} companies.")
