@@ -7,7 +7,6 @@ import queue
 import yfinance as yf
 import numpy as np
 import pandas as pd
-import json
 import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -68,23 +67,18 @@ def place_stop_loss_and_take_profit(symbol, price):
     take_profit = price * (1 + TAKE_PROFIT_PERCENTAGE)
     return f"{symbol}: SL at {stop_loss:.2f}, TP at {take_profit:.2f}"
 
-# -- Load Symbols from JSON --
-def load_fortune500_symbols():
-    try:
-        with open("fortune500_companies.json", "r") as f:
-            data = json.load(f)
-            return [entry["symbol"] for entry in data if entry.get("symbol")]
-    except Exception as e:
-        print(f"Failed to load symbols: {e}")
-        return []
+# -- Hardcoded Stock Symbols --
+stock_symbols = [
+    "AAPL", "AMZN", "GOOGL", "MSFT", "TSLA", "META", "NVDA", "BRK-B", 
+    "UNH", "JNJ", "V", "WMT", "PG", "MA", "DIS", "PYPL", "HD", "NVDA", "BA", "VZ"
+]
 
 # -- Async Monitoring Logic --
 async def monitor_stocks(queue_out):
-    watchlist = load_fortune500_symbols()[:20]
     models = {}
 
     # Load models for the stocks
-    for symbol in watchlist:
+    for symbol in stock_symbols:
         model = train_ml_model(symbol)
         if model:
             models[symbol] = model
