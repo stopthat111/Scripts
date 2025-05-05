@@ -1,11 +1,61 @@
-ryan@ryan-Standard-PC-i440FX-PIIX-1996:~/Desktop$ python3 apptest.py 
-Exception in Tkinter callback
-Traceback (most recent call last):
-  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
-    return self.func(*args)
-           ^^^^^^^^^^^^^^^^
-  File "/home/ryan/Desktop/apptest.py", line 45, in start_monitoring
-    self.task = asyncio.run_coroutine_threadsafe(main(self.text_area), self.loop)
-                                                 ^^^^^^^^^^^^^^^^^^^^
-TypeError: main() takes 0 positional arguments but 1 was given
+import tkinter as tk
+from tkinter import ttk
+from tkinter.scrolledtext import ScrolledText
+import asyncio
+import sys
+import os
+import threading
 
+# Ensure stocktest.py is importable from the same directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+
+from stocktest import main  # main should now accept `text_area`
+
+class StockMonitorApp(tk.Tk):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.title("Stock Monitoring App")
+        self.geometry("800x600")
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        self.loop = asyncio.new_event_loop()
+        self.task = None
+        self.loop_thread = threading.Thread(target=self.loop.run_forever, daemon=True)
+        self.loop_thread.start()
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.label = ttk.Label(self, text="Stock Monitoring Dashboard")
+        self.label.pack(pady=10)
+
+        self.text_area = ScrolledText(self, height=20)
+        self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+        self.start_button = ttk.Button(self, text="Start Monitoring", command=self.start_monitoring)
+        self.start_button.pack(pady=10)
+
+        self.stop_button = ttk.Button(self, text="Stop Monitoring", command=self.stop_monitoring)
+        self.stop_button.pack(pady=10)
+
+    def start_monitoring(self):
+        self.text_area.insert(tk.END, "Monitoring started...\n")
+        self.text_area.see(tk.END)
+        if not self.task or self.task.done():
+            self.task = asyncio.run_coroutine_threadsafe(main(self.text_area), self.loop)
+
+    def stop_monitoring(self):
+        self.text_area.insert(tk.END, "Monitoring stopped.\n")
+        self.text_area.see(tk.END)
+        if self.task and not self.task.done():
+            self.task.cancel()
+
+    def on_close(self):
+        self.stop_monitoring()
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.destroy()
+
+if __name__ == "__main__":
+    app = StockMonitorApp()
+    app.mainloop()
