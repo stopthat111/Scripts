@@ -1,56 +1,33 @@
-import pandas as pd
-import yfinance as yf
 import json
-import time
+import csv
+import difflib
 
-def get_fortune_500_companies():
-    url = 'https://en.wikipedia.org/wiki/List_of_largest_companies_in_the_United_States_by_revenue'
-    try:
-        tables = pd.read_html(url)
-        df = tables[0]
-        if 'Name' in df.columns:
-            companies = df['Name'].tolist()
-        elif 'Company' in df.columns:
-            companies = df['Company'].tolist()
-        else:
-            raise ValueError("Company name column not found.")
-        return companies
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch table from Wikipedia: {e}")
-        return []
+# Load Fortune 500 list
+with open("fortune500_companies.json", "r") as f:
+    fortune500 = json.load(f)
 
-def resolve_symbol(company_name):
-    try:
-        ticker = yf.Ticker(company_name)
-        info = ticker.info
-        symbol = info.get('symbol', None)
-        # Validate that the symbol works by trying to fetch price data
-        if symbol:
-            test_data = yf.download(symbol, period="1d")
-            if not test_data.empty:
-                return symbol
-    except Exception:
-        pass
-    return None
+# Load NASDAQ CSV
+tickers = []
+with open("all_tickers.csv", newline='') as csvfile:
+    reader = csv.DictReader(csvfile)
+    for row in reader:
+        tickers.append({
+            "symbol": row["Symbol"].strip(),
+            "name": row["Name"].strip()
+        })
 
-def main():
-    companies = get_fortune_500_companies()
-    print(f"[INFO] Total companies fetched: {len(companies)}")
+# Match company names
+matched = {}
+for company in fortune500:
+    best_match = difflib.get_close_matches(company, [t["name"] for t in tickers], n=1, cutoff=0.8)
+    if best_match:
+        for t in tickers:
+            if t["name"] == best_match[0]:
+                matched[company] = t["symbol"]
+                break
 
-    symbols = []
-    for i, company in enumerate(companies):
-        print(f"[INFO] Resolving symbol for {company} ({i+1}/{len(companies)})")
-        symbol = resolve_symbol(company)
-        if symbol:
-            symbols.append(symbol)
-            print(f"   ✓ Found symbol: {symbol}")
-        else:
-            print(f"   ✗ Could not resolve symbol.")
-        time.sleep(0.5)  # Be nice to Yahoo's servers
+# Save to fortune500.json
+with open("fortune500.json", "w") as f:
+    json.dump(matched, f, indent=4)
 
-    with open("fortune500.json", "w") as f:
-        json.dump(symbols, f, indent=4)
-    print(f"[DONE] {len(symbols)} symbols saved to fortune500.json")
-
-if __name__ == "__main__":
-    main()
+print(f"Matched {len(matched)} companies.")
