@@ -7,25 +7,17 @@ import queue
 import yfinance as yf
 import numpy as np
 import pandas as pd
+import json
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-import json
 
 # -- CONFIGURATION --
 SMA_SHORT_PERIOD = 50
 SMA_LONG_PERIOD = 200
 STOP_LOSS_PERCENTAGE = 0.02
 TAKE_PROFIT_PERCENTAGE = 0.05
-PRICE_SPIKE_10MIN = 5
-PRICE_SPIKE_1HOUR = 10
 
-# -- Load Fortune 500 Symbols --
-def load_fortune_500_symbols():
-    with open('fortune500.json', 'r') as f:
-        fortune_500_symbols = json.load(f)
-    return fortune_500_symbols
-
-# -- Technical Indicator Calculations --
+# -- Technical Indicators --
 def calculate_rsi(prices, period=14):
     delta = prices.diff()
     gain = delta.where(delta > 0, 0.0)
@@ -43,18 +35,23 @@ def calculate_macd(prices, fast=12, slow=26, signal=9):
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     return macd, signal_line
 
-# -- ML & Finance Logic --
-def fetch_stock_data(stock_symbol):
-    return yf.download(stock_symbol, period="1y", interval="1d")
+# -- Data & Model Logic --
+def fetch_stock_data(symbol):
+    return yf.download(symbol, period="1y", interval="1d", progress=False)
 
-def train_ml_model(stock_symbol):
-    data = fetch_stock_data(stock_symbol)
+def train_ml_model(symbol):
+    data = fetch_stock_data(symbol)
+    if data.empty or len(data) < SMA_LONG_PERIOD:
+        return None
+
     data['RSI'] = calculate_rsi(data['Close'])
     data['MACD'], data['Signal'] = calculate_macd(data['Close'])
     data['Price Change'] = data['Close'].pct_change().shift(-1)
     data.dropna(inplace=True)
+
     features = data[['RSI', 'MACD', 'Signal']]
     target = np.where(data['Price Change'] > 0, 1, 0)
+
     X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2)
     model = RandomForestClassifier()
     model.fit(X_train, y_train)
@@ -65,24 +62,37 @@ def get_technical_indicators(data):
     sma_long = data['Close'].rolling(window=SMA_LONG_PERIOD).mean()
     return sma_short, sma_long
 
-def calculate_position_size(account_balance, stock_price):
-    risk = account_balance * 0.01
-    stop_loss = stock_price * STOP_LOSS_PERCENTAGE
-    return risk / stop_loss
-
-def place_stop_loss_and_take_profit(symbol, price, position_size):
+def place_stop_loss_and_take_profit(symbol, price):
     stop_loss = price * (1 - STOP_LOSS_PERCENTAGE)
     take_profit = price * (1 + TAKE_PROFIT_PERCENTAGE)
     return f"{symbol}: SL at {stop_loss:.2f}, TP at {take_profit:.2f}"
 
-# -- Async Monitor Logic --
+# -- Load Symbols from JSON --
+def load_fortune500_symbols():
+    try:
+        with open("fortune500_companies.json", "r") as f:
+            data = json.load(f)
+            return [entry["symbol"] for entry in data if entry.get("symbol")]
+    except Exception as e:
+        print(f"Failed to load symbols: {e}")
+        return []
+
+# -- Async Monitoring Logic --
 async def monitor_stocks(queue_out):
-    watchlist = load_fortune_500_symbols()  # Load symbols from fortune500.json
-    models = {s: train_ml_model(s) for s in watchlist}
+    watchlist = load_fortune500_symbols()[:20]  # Use first 20 for performance
+    models = {}
+
+    for symbol in watchlist:
+        model = train_ml_model(symbol)
+        if model:
+            models[symbol] = model
 
     while True:
-        for symbol in watchlist:
+        for symbol in models:
             data = fetch_stock_data(symbol)
+            if data.empty or len(data) < SMA_LONG_PERIOD:
+                continue
+
             data['RSI'] = calculate_rsi(data['Close'])
             data['MACD'], data['Signal'] = calculate_macd(data['Close'])
             sma_short, sma_long = get_technical_indicators(data)
@@ -99,10 +109,11 @@ async def monitor_stocks(queue_out):
                 data['MACD'].iloc[-1],
                 data['Signal'].iloc[-1]
             ]).reshape(1, -1)
+
             prediction = models[symbol].predict(features)
             msg.append(f"{symbol}: {'Buy' if prediction == 1 else 'Sell'} Signal")
 
-            msg.append(place_stop_loss_and_take_profit(symbol, price, 100))
+            msg.append(place_stop_loss_and_take_profit(symbol, price))
 
             for m in msg:
                 queue_out.put(m)
@@ -112,12 +123,12 @@ async def monitor_stocks(queue_out):
 async def main(queue_out):
     await monitor_stocks(queue_out)
 
-# -- GUI --
+# -- GUI Class --
 class StockApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Stock Monitor")
-        self.geometry("800x600")
+        self.title("Fortune 500 Stock Monitor")
+        self.geometry("900x600")
 
         self.queue = queue.Queue()
         self.loop = asyncio.new_event_loop()
@@ -129,10 +140,9 @@ class StockApp(tk.Tk):
         self.after(100, self.process_queue)
 
     def setup_ui(self):
-        ttk.Label(self, text="Stock Dashboard").pack(pady=10)
-        self.text_area = ScrolledText(self, height=25)
+        ttk.Label(self, text="Monitoring Fortune 500 Stocks").pack(pady=10)
+        self.text_area = ScrolledText(self, height=30)
         self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-
         ttk.Button(self, text="Start Monitoring", command=self.start_monitoring).pack(pady=5)
         ttk.Button(self, text="Stop Monitoring", command=self.stop_monitoring).pack(pady=5)
 
