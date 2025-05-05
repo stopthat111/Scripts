@@ -16,6 +16,8 @@ SMA_SHORT_PERIOD = 50
 SMA_LONG_PERIOD = 200
 STOP_LOSS_PERCENTAGE = 0.02
 TAKE_PROFIT_PERCENTAGE = 0.05
+FETCH_INTERVAL_SECONDS = 60
+PRICE_PRINT_INTERVAL_SECONDS = 3600
 
 # -- Technical Indicators --
 def calculate_rsi(prices, period=14):
@@ -78,8 +80,8 @@ def load_fortune500_symbols():
         return []
 
 # -- Async Monitoring Logic --
-async def monitor_stocks(queue_out):
-    watchlist = load_fortune500_symbols()[:20]  # Use first 20 for performance
+async def main(queue_out, status_callback):
+    watchlist = load_fortune500_symbols()[:20]
     models = {}
 
     for symbol in watchlist:
@@ -87,48 +89,59 @@ async def monitor_stocks(queue_out):
         if model:
             models[symbol] = model
 
-    while True:
-        for symbol in models:
-            data = fetch_stock_data(symbol)
-            if data.empty or len(data) < SMA_LONG_PERIOD:
-                continue
+    async def monitor_loop():
+        while True:
+            for symbol in models:
+                data = fetch_stock_data(symbol)
+                if data.empty or len(data) < SMA_LONG_PERIOD:
+                    continue
 
-            data['RSI'] = calculate_rsi(data['Close'])
-            data['MACD'], data['Signal'] = calculate_macd(data['Close'])
-            sma_short, sma_long = get_technical_indicators(data)
-            price = data['Close'].iloc[-1]
-            msg = []
+                data['RSI'] = calculate_rsi(data['Close'])
+                data['MACD'], data['Signal'] = calculate_macd(data['Close'])
+                sma_short, sma_long = get_technical_indicators(data)
+                price = data['Close'].iloc[-1]
+                msg = []
 
-            if sma_short.iloc[-1] > sma_long.iloc[-1]:
-                msg.append(f"{symbol}: Bullish crossover.")
-            elif sma_short.iloc[-1] < sma_long.iloc[-1]:
-                msg.append(f"{symbol}: Bearish crossover.")
+                if sma_short.iloc[-1] > sma_long.iloc[-1]:
+                    msg.append(f"{symbol}: Bullish crossover.")
+                elif sma_short.iloc[-1] < sma_long.iloc[-1]:
+                    msg.append(f"{symbol}: Bearish crossover.")
 
-            features = np.array([
-                data['RSI'].iloc[-1],
-                data['MACD'].iloc[-1],
-                data['Signal'].iloc[-1]
-            ]).reshape(1, -1)
+                features = np.array([
+                    data['RSI'].iloc[-1],
+                    data['MACD'].iloc[-1],
+                    data['Signal'].iloc[-1]
+                ]).reshape(1, -1)
 
-            prediction = models[symbol].predict(features)
-            msg.append(f"{symbol}: {'Buy' if prediction == 1 else 'Sell'} Signal")
+                prediction = models[symbol].predict(features)
+                msg.append(f"{symbol}: {'Buy' if prediction == 1 else 'Sell'} Signal")
+                msg.append(place_stop_loss_and_take_profit(symbol, price))
 
-            msg.append(place_stop_loss_and_take_profit(symbol, price))
+                for m in msg:
+                    queue_out.put(m)
 
-            for m in msg:
-                queue_out.put(m)
+            await asyncio.sleep(FETCH_INTERVAL_SECONDS)
 
-        await asyncio.sleep(60)
+    async def print_prices_hourly():
+        while True:
+            for symbol in models:
+                data = fetch_stock_data(symbol)
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+                    queue_out.put(f"{symbol} current price: ${price:.2f}")
+            if status_callback:
+                next_fetch = pd.Timestamp.now() + pd.Timedelta(seconds=PRICE_PRINT_INTERVAL_SECONDS)
+                status_callback(f"Next hourly price check: {next_fetch.strftime('%H:%M:%S')}")
+            await asyncio.sleep(PRICE_PRINT_INTERVAL_SECONDS)
 
-async def main(queue_out):
-    await monitor_stocks(queue_out)
+    await asyncio.gather(monitor_loop(), print_prices_hourly())
 
 # -- GUI Class --
 class StockApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Fortune 500 Stock Monitor")
-        self.geometry("1000x700")  # Increased size to avoid button cut-off
+        self.geometry("960x680")  # Slightly larger window
 
         self.queue = queue.Queue()
         self.loop = asyncio.new_event_loop()
@@ -143,17 +156,22 @@ class StockApp(tk.Tk):
         ttk.Label(self, text="Monitoring Fortune 500 Stocks").pack(pady=10)
         self.text_area = ScrolledText(self, height=30)
         self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+        self.status_label = ttk.Label(self, text="Status: Idle")
+        self.status_label.pack(pady=5)
+
         ttk.Button(self, text="Start Monitoring", command=self.start_monitoring).pack(pady=5)
         ttk.Button(self, text="Stop Monitoring", command=self.stop_monitoring).pack(pady=5)
 
     def start_monitoring(self):
         self.text_area.insert(tk.END, "Monitoring started...\n")
         if not self.task or self.task.done():
-            self.task = asyncio.run_coroutine_threadsafe(main(self.queue), self.loop)
+            self.task = asyncio.run_coroutine_threadsafe(main(self.queue, self.update_status), self.loop)
 
     def stop_monitoring(self):
         if self.task and not self.task.done():
             self.task.cancel()
+        self.update_status("Idle")
         self.text_area.insert(tk.END, "Monitoring stopped.\n")
 
     def process_queue(self):
@@ -162,6 +180,9 @@ class StockApp(tk.Tk):
             self.text_area.insert(tk.END, msg + '\n')
             self.text_area.see(tk.END)
         self.after(100, self.process_queue)
+
+    def update_status(self, message):
+        self.status_label.config(text=f"Status: {message}")
 
     def on_close(self):
         self.stop_monitoring()
