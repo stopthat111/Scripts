@@ -83,10 +83,22 @@ async def monitor_stocks(queue_out):
     watchlist = load_fortune500_symbols()[:20]
     models = {}
 
+    # Load models for the stocks
     for symbol in watchlist:
         model = train_ml_model(symbol)
         if model:
             models[symbol] = model
+
+    # Immediate price update after loading models
+    prices = {}
+    for symbol in models:
+        try:
+            data = fetch_stock_data(symbol)
+            price = data['Close'].iloc[-1]
+            prices[symbol] = price
+        except:
+            continue
+    queue_out.put(("__PRICE_UPDATE__", prices, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     last_price_update = datetime.datetime.min
 
@@ -122,7 +134,8 @@ async def monitor_stocks(queue_out):
             for m in msg:
                 queue_out.put(m)
 
-        if (now - last_price_update).seconds >= 3600:
+        # Update prices every hour
+        if (now - last_price_update).total_seconds() >= 3600 or last_price_update == datetime.datetime.min:
             prices = {}
             for symbol in models:
                 try:
