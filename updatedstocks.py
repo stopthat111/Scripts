@@ -7,10 +7,13 @@ import queue
 import yfinance as yf
 import numpy as np
 import pandas as pd
-import json
 import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from flask import Flask, jsonify
+from flask_socketio import SocketIO, emit
+from celery import Celery
+from celery.schedules import crontab
 
 # -- CONFIGURATION --
 SMA_SHORT_PERIOD = 50
@@ -42,7 +45,7 @@ def fetch_stock_data(symbol):
     if data.empty:
         print(f"No data for {symbol}")
     else:
-        print(f"Fetched data for {symbol}:\n{data.tail()}")  # Debug log for fetched data
+        print(f"Fetched data for {symbol}:\n{data.tail()}")
     return data
 
 def train_ml_model(symbol):
@@ -73,21 +76,8 @@ def place_stop_loss_and_take_profit(symbol, price):
     take_profit = price * (1 + TAKE_PROFIT_PERCENTAGE)
     return f"{symbol}: SL at {stop_loss:.2f}, TP at {take_profit:.2f}"
 
-# -- Directly Provided Stock Symbols --
-watchlist = [
-    "AAPL", "AMZN", "GOOGL", "MSFT", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
-    "V", "WMT", "PG", "MA", "DIS", "PYPL", "HD", "NVDA", "BA", "VZ"
-]
-
 # -- Async Monitoring Logic --
-async def monitor_stocks(queue_out):
-    models = {}
-
-    for symbol in watchlist:
-        model = train_ml_model(symbol)
-        if model:
-            models[symbol] = model
-
+async def monitor_stocks(queue_out, models, watchlist):
     last_price_update = datetime.datetime.min
 
     while True:
@@ -103,20 +93,15 @@ async def monitor_stocks(queue_out):
             sma_short, sma_long = get_technical_indicators(data)
             price = data['Close'].iloc[-1]
 
-            print(f"Latest price for {symbol}: {price}")  # Debug log for price
+            print(f"Latest price for {symbol}: {price}")
 
-            # Continue with your existing logic...
             msg = []
             if sma_short.iloc[-1] > sma_long.iloc[-1]:
                 msg.append(f"{symbol}: Bullish crossover.")
             elif sma_short.iloc[-1] < sma_long.iloc[-1]:
                 msg.append(f"{symbol}: Bearish crossover.")
 
-            features = np.array([
-                data['RSI'].iloc[-1],
-                data['MACD'].iloc[-1],
-                data['Signal'].iloc[-1]
-            ]).reshape(1, -1)
+            features = np.array([data['RSI'].iloc[-1], data['MACD'].iloc[-1], data['Signal'].iloc[-1]]).reshape(1, -1)
 
             prediction = models[symbol].predict(features)
             msg.append(f"{symbol}: {'Buy' if prediction == 1 else 'Sell'} Signal")
@@ -139,8 +124,26 @@ async def monitor_stocks(queue_out):
 
         await asyncio.sleep(60)
 
-async def main(queue_out):
-    await monitor_stocks(queue_out)
+async def main(queue_out, models, watchlist):
+    await monitor_stocks(queue_out, models, watchlist)
+
+# -- Flask and SocketIO for WebSocket-based Updates --
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+@socketio.on('connect')
+def handle_connect():
+    emit('status_update', {'message': 'Connected to trading indicator server'})
+
+@app.route('/start', methods=['GET'])
+def start_trading():
+    task = asyncio.run_coroutine_threadsafe(main(queue, models, watchlist), loop)
+    return jsonify({'task_id': task.id})
+
+@app.route('/status/<task_id>', methods=['GET'])
+def task_status(task_id):
+    task = asyncio.AsyncResult(task_id)
+    return jsonify({'status': task.status, 'result': task.result})
 
 # -- GUI Class --
 class StockApp(tk.Tk):
@@ -230,7 +233,7 @@ class StockApp(tk.Tk):
     def start_monitoring(self):
         self.text_area.insert(tk.END, "Monitoring started...\n")
         if not self.task or self.task.done():
-            self.task = asyncio.run_coroutine_threadsafe(main(self.queue), self.loop)
+            self.task = asyncio.run_coroutine_threadsafe(main(self.queue, models, watchlist), self.loop)
 
     def stop_monitoring(self):
         if self.task and not self.task.done():
@@ -255,6 +258,20 @@ class StockApp(tk.Tk):
         self.destroy()
 
 if __name__ == "__main__":
+    # Train models for each stock in the watchlist
+    models = {}
+    watchlist = [
+        "AAPL", "AMZN", "GOOGL", "MSFT", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
+        "V", "WMT", "PG", "MA", "DIS", "PYPL", "HD", "NVDA", "BA", "VZ"
+    ]
+    for symbol in watchlist:
+        model = train_ml_model(symbol)
+        if model:
+            models[symbol] = model
+
+    # Set up the Tkinter GUI
     app = StockApp()
     app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()
+
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
