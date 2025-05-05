@@ -38,7 +38,12 @@ def calculate_macd(prices, fast=12, slow=26, signal=9):
 
 # -- Data & Model Logic --
 def fetch_stock_data(symbol):
-    return yf.download(symbol, period="1y", interval="1d", progress=False)
+    data = yf.download(symbol, period="1y", interval="1d", progress=False)
+    if data.empty:
+        print(f"No data for {symbol}")
+    else:
+        print(f"Fetched data for {symbol}:\n{data.tail()}")  # Debug log for fetched data
+    return data
 
 def train_ml_model(symbol):
     data = fetch_stock_data(symbol)
@@ -68,7 +73,7 @@ def place_stop_loss_and_take_profit(symbol, price):
     take_profit = price * (1 + TAKE_PROFIT_PERCENTAGE)
     return f"{symbol}: SL at {stop_loss:.2f}, TP at {take_profit:.2f}"
 
-# -- Define Stock Symbols --
+# -- Directly Provided Stock Symbols --
 watchlist = [
     "AAPL", "AMZN", "GOOGL", "MSFT", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
     "V", "WMT", "PG", "MA", "DIS", "PYPL", "HD", "NVDA", "BA", "VZ"
@@ -97,8 +102,11 @@ async def monitor_stocks(queue_out):
             data['MACD'], data['Signal'] = calculate_macd(data['Close'])
             sma_short, sma_long = get_technical_indicators(data)
             price = data['Close'].iloc[-1]
-            msg = []
 
+            print(f"Latest price for {symbol}: {price}")  # Debug log for price
+
+            # Continue with your existing logic...
+            msg = []
             if sma_short.iloc[-1] > sma_long.iloc[-1]:
                 msg.append(f"{symbol}: Bullish crossover.")
             elif sma_short.iloc[-1] < sma_long.iloc[-1]:
@@ -200,7 +208,7 @@ class StockApp(tk.Tk):
 
             for symbol, price in sorted_items:
                 last_price = self.last_prices.get(symbol, price)
-                delta = price - last_price  # Fix here to compare scalar values
+                delta = price - last_price
                 color = "black"
                 arrow = ""
                 if delta > 0:
