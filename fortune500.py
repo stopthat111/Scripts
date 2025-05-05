@@ -1,32 +1,42 @@
 import json
 import csv
 import difflib
+import re
 
-# Load Fortune 500 list
+# Normalize company name by removing suffixes and converting to lowercase
+def normalize(name):
+    name = name.lower()
+    name = re.sub(r'\b(incorporated|inc|corp|corporation|llc|co|ltd|plc)\b\.?', '', name)
+    name = re.sub(r'[^\w\s]', '', name)  # remove punctuation
+    return name.strip()
+
+# Load Fortune 500 company names
 with open("fortune500_companies.json", "r") as f:
     fortune500 = json.load(f)
+normalized_f500 = {normalize(name): name for name in fortune500}
 
-# Load NASDAQ CSV
+# Load all tickers from CSV
 tickers = []
 with open("all_tickers.csv", newline='') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
         tickers.append({
             "symbol": row["Symbol"].strip(),
-            "name": row["Name"].strip()
+            "name": row["Name"].strip(),
+            "normalized": normalize(row["Name"])
         })
 
-# Match company names
+# Perform fuzzy matching
 matched = {}
-for company in fortune500:
-    best_match = difflib.get_close_matches(company, [t["name"] for t in tickers], n=1, cutoff=0.8)
+for norm_f500, original_f500 in normalized_f500.items():
+    best_match = difflib.get_close_matches(norm_f500, [t["normalized"] for t in tickers], n=1, cutoff=0.8)
     if best_match:
         for t in tickers:
-            if t["name"] == best_match[0]:
-                matched[company] = t["symbol"]
+            if t["normalized"] == best_match[0]:
+                matched[original_f500] = t["symbol"]
                 break
 
-# Save to fortune500.json
+# Save matched symbols to JSON
 with open("fortune500.json", "w") as f:
     json.dump(matched, f, indent=4)
 
