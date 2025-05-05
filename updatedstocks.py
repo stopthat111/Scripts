@@ -7,6 +7,7 @@ import queue
 import yfinance as yf
 import numpy as np
 import pandas as pd
+import json
 import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -67,32 +68,20 @@ def place_stop_loss_and_take_profit(symbol, price):
     take_profit = price * (1 + TAKE_PROFIT_PERCENTAGE)
     return f"{symbol}: SL at {stop_loss:.2f}, TP at {take_profit:.2f}"
 
-# -- Hardcoded Stock Symbols --
-stock_symbols = [
-    "AAPL", "AMZN", "GOOGL", "MSFT", "TSLA", "META", "NVDA", "BRK-B", 
-    "UNH", "JNJ", "V", "WMT", "PG", "MA", "DIS", "PYPL", "HD", "NVDA", "BA", "VZ"
+# -- Define Stock Symbols --
+watchlist = [
+    "AAPL", "AMZN", "GOOGL", "MSFT", "TSLA", "META", "NVDA", "BRK-B", "UNH", "JNJ",
+    "V", "WMT", "PG", "MA", "DIS", "PYPL", "HD", "NVDA", "BA", "VZ"
 ]
 
 # -- Async Monitoring Logic --
 async def monitor_stocks(queue_out):
     models = {}
 
-    # Load models for the stocks
-    for symbol in stock_symbols:
+    for symbol in watchlist:
         model = train_ml_model(symbol)
         if model:
             models[symbol] = model
-
-    # Immediate price update after loading models
-    prices = {}
-    for symbol in models:
-        try:
-            data = fetch_stock_data(symbol)
-            price = data['Close'].iloc[-1]
-            prices[symbol] = price
-        except:
-            continue
-    queue_out.put(("__PRICE_UPDATE__", prices, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     last_price_update = datetime.datetime.min
 
@@ -128,8 +117,7 @@ async def monitor_stocks(queue_out):
             for m in msg:
                 queue_out.put(m)
 
-        # Update prices every hour
-        if (now - last_price_update).total_seconds() >= 3600 or last_price_update == datetime.datetime.min:
+        if (now - last_price_update).seconds >= 3600:
             prices = {}
             for symbol in models:
                 try:
@@ -212,7 +200,7 @@ class StockApp(tk.Tk):
 
             for symbol, price in sorted_items:
                 last_price = self.last_prices.get(symbol, price)
-                delta = price - last_price
+                delta = price - last_price  # Fix here to compare scalar values
                 color = "black"
                 arrow = ""
                 if delta > 0:
