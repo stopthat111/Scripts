@@ -1,61 +1,188 @@
-import tkinter as tk
-from tkinter import ttk
-from tkinter.scrolledtext import ScrolledText
 import asyncio
-import sys
-import os
-import threading
+import requests
+import talib
+import pandas as pd
+from textblob import TextBlob
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+import numpy as np
+import yfinance as yf
+import sqlite3
+from datetime import datetime
 
-# Ensure stocktest.py is importable from the same directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_dir)
+# CONFIGURATION
+RSI_THRESHOLD = 30
+MACD_THRESHOLD = 0
+SMA_SHORT_PERIOD = 50
+SMA_LONG_PERIOD = 200
+BOLLINGER_BAND_STDDEV = 2
+SMA_CROSSOVER_THRESHOLD = 0.01
+STOP_LOSS_PERCENTAGE = 0.02
+TAKE_PROFIT_PERCENTAGE = 0.05
+MODEL_TRAINING_DAYS = 365
+SEC_EDGAR_API = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK="
+DB_FILE = "C:\\Users\\Public\\politician_trades.db"
+MIN_TRADE_AMOUNT = 100000
+VOLUME_SURGE_THRESHOLD = 2
+OPTION_BET_THRESHOLD = 200000
+PRICE_SPIKE_10MIN = 5
+PRICE_SPIKE_1HOUR = 10
 
-from stocktest import main  # main should now accept `text_area`
+# Utility for UI/logging
+def log_message(text_area, message):
+    if text_area:
+        text_area.insert('end', message + "\n")
+        text_area.see('end')
+    else:
+        print(message)
 
-class StockMonitorApp(tk.Tk):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.title("Stock Monitoring App")
-        self.geometry("800x600")
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
+# Dummy placeholder for fetching unusual trades
+def fetch_unusual_trades():
+    # In practice, replace this stub with a real API call.
+    return [{"ticker": "AAPL", "transaction_type": "CALL", "premium": 250000}]
 
-        self.loop = asyncio.new_event_loop()
-        self.task = None
-        self.loop_thread = threading.Thread(target=self.loop.run_forever, daemon=True)
-        self.loop_thread.start()
+def get_news_sentiment(stock_symbol):
+    # Dummy sentiment function. Replace with actual sentiment analysis.
+    return 0.2  # Stubbed to always return a positive score
 
-        self.setup_ui()
+# Database setup
+def setup_database():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS trades (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        stock TEXT,
+                        transaction TEXT,
+                        amount INTEGER,
+                        date TEXT)''')
+    conn.commit()
+    conn.close()
 
-    def setup_ui(self):
-        self.label = ttk.Label(self, text="Stock Monitoring Dashboard")
-        self.label.pack(pady=10)
+def fetch_fortune_500():
+    # Replace this with a real API call or data source.
+    return ["AAPL", "MSFT", "GOOGL"]
 
-        self.text_area = ScrolledText(self, height=20)
-        self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+def fetch_nasdaq_symbols():
+    # Replace this with a real NASDAQ API call if needed.
+    return ["TSLA", "NVDA", "AMZN"]
 
-        self.start_button = ttk.Button(self, text="Start Monitoring", command=self.start_monitoring)
-        self.start_button.pack(pady=10)
+def update_watchlist():
+    fortune_500 = fetch_fortune_500()
+    nasdaq_symbols = fetch_nasdaq_symbols()
+    return list(set(fortune_500 + nasdaq_symbols))
 
-        self.stop_button = ttk.Button(self, text="Stop Monitoring", command=self.stop_monitoring)
-        self.stop_button.pack(pady=10)
+def fetch_stock_data(stock_symbol):
+    return yf.download(stock_symbol, period="1y", interval="1d")
 
-    def start_monitoring(self):
-        self.text_area.insert(tk.END, "Monitoring started...\n")
-        self.text_area.see(tk.END)
-        if not self.task or self.task.done():
-            self.task = asyncio.run_coroutine_threadsafe(main(self.text_area), self.loop)
+def train_ml_model(stock_symbol):
+    try:
+        data = yf.download(stock_symbol, period="1y", interval="1d")
+        if data.empty:
+            raise ValueError("No data returned")
+        data['RSI'] = talib.RSI(data['Close'].values, timeperiod=14)
+        data['MACD'], data['Signal'], _ = talib.MACD(data['Close'].values, fastperiod=12, slowperiod=26, signalperiod=9)
+        data['Price Change'] = data['Close'].pct_change().shift(-1)
+        data.dropna(inplace=True)
+        if data.empty:
+            raise ValueError("Not enough data after computing indicators")
+        features = data[['RSI', 'MACD', 'Signal']]
+        target = np.where(data['Price Change'] > 0, 1, 0)
+        X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
+        model = RandomForestClassifier()
+        model.fit(X_train, y_train)
+        accuracy = model.score(X_test, y_test)
+        log_message(None, f'Model Accuracy for {stock_symbol}: {accuracy * 100:.2f}%')
+        return model
+    except Exception as e:
+        raise ValueError(f"Error training model for {stock_symbol}: {e}")
 
-    def stop_monitoring(self):
-        self.text_area.insert(tk.END, "Monitoring stopped.\n")
-        self.text_area.see(tk.END)
-        if self.task and not self.task.done():
-            self.task.cancel()
+def get_technical_indicators(stock_data):
+    close_prices = stock_data['Close'].values
+    sma_short = talib.SMA(close_prices, timeperiod=SMA_SHORT_PERIOD)
+    sma_long = talib.SMA(close_prices, timeperiod=SMA_LONG_PERIOD)
+    upper_band, _, lower_band = talib.BBANDS(close_prices, timeperiod=20, nbdevup=BOLLINGER_BAND_STDDEV, nbdevdn=BOLLINGER_BAND_STDDEV)
+    return sma_short, sma_long, upper_band, lower_band
 
-    def on_close(self):
-        self.stop_monitoring()
-        self.loop.call_soon_threadsafe(self.loop.stop)
-        self.destroy()
+def calculate_position_size(account_balance, stock_price, stop_loss_percentage):
+    risk_per_trade = account_balance * 0.01
+    stop_loss_amount = stock_price * stop_loss_percentage
+    return risk_per_trade / stop_loss_amount
+
+def place_stop_loss_and_take_profit(stock_symbol, current_price, position_size):
+    stop_loss_price = current_price * (1 - STOP_LOSS_PERCENTAGE)
+    take_profit_price = current_price * (1 + TAKE_PROFIT_PERCENTAGE)
+    return stop_loss_price, take_profit_price
+
+async def monitor_stocks(text_area=None):
+    setup_database()
+    watchlist = update_watchlist()
+    
+    # Train models for each stock, logging any training failures.
+    models = {}
+    for stock in watchlist:
+        try:
+            model = train_ml_model(stock)
+            models[stock] = model
+            log_message(text_area, f"Trained model for {stock}.")
+        except Exception as e:
+            log_message(text_area, f"Error training model for {stock}: {e}")
+
+    while True:
+        for stock_symbol in watchlist:
+            # Skip if model training failed for this symbol.
+            if stock_symbol not in models:
+                log_message(text_area, f"Skipping {stock_symbol} due to missing model.")
+                continue
+
+            stock_data = fetch_stock_data(stock_symbol)
+            if stock_data is not None and not stock_data.empty:
+                sentiment_score = get_news_sentiment(stock_symbol)
+                sma_short, sma_long, upper_band, lower_band = get_technical_indicators(stock_data)
+                latest_price = stock_data['Close'].iloc[-1]
+
+                for trade in fetch_unusual_trades():
+                    if trade["premium"] >= OPTION_BET_THRESHOLD:
+                        log_message(text_area, f"🚨 BIG OPTION BET: {trade['ticker']} - {trade['transaction_type']} - ${trade['premium']}")
+
+                if sma_short[-1] > sma_long[-1]:
+                    log_message(text_area, f"{stock_symbol}: Bullish crossover.")
+                elif sma_short[-1] < sma_long[-1]:
+                    log_message(text_area, f"{stock_symbol}: Bearish crossover.")
+
+                if latest_price > upper_band[-1]:
+                    log_message(text_area, f"{stock_symbol}: Overbought.")
+                elif latest_price < lower_band[-1]:
+                    log_message(text_area, f"{stock_symbol}: Oversold.")
+
+                if sentiment_score > 0.1:
+                    log_message(text_area, f"{stock_symbol}: Positive Sentiment.")
+                elif sentiment_score < -0.1:
+                    log_message(text_area, f"{stock_symbol}: Negative Sentiment.")
+
+                rsi = talib.RSI(stock_data['Close'].values, timeperiod=14)
+                macd, signal, _ = talib.MACD(stock_data['Close'].values, fastperiod=12, slowperiod=26, signalperiod=9)
+                features = np.array([rsi[-1], macd[-1], signal[-1]]).reshape(1, -1)
+                prediction = models[stock_symbol].predict(features)
+                log_message(text_area, f"{stock_symbol}: {'Buy' if prediction == 1 else 'Sell'} Signal")
+
+                position_size = calculate_position_size(100000, latest_price, STOP_LOSS_PERCENTAGE)
+                stop_loss_price, take_profit_price = place_stop_loss_and_take_profit(stock_symbol, latest_price, position_size)
+                log_message(text_area, f"{stock_symbol}: Stop-Loss at {stop_loss_price:.2f}, Take-Profit at {take_profit_price:.2f}")
+
+                try:
+                    price_change_10min = (stock_data['Close'].iloc[-1] - stock_data['Close'].iloc[-11]) / stock_data['Close'].iloc[-11] * 100
+                    price_change_1hour = (stock_data['Close'].iloc[-1] - stock_data['Close'].iloc[-61]) / stock_data['Close'].iloc[-61] * 100
+                    if price_change_10min >= PRICE_SPIKE_10MIN:
+                        log_message(text_area, f"🚨 {stock_symbol}: Price up {price_change_10min:.2f}% in 10 minutes")
+                    if price_change_1hour >= PRICE_SPIKE_1HOUR:
+                        log_message(text_area, f"🚨 {stock_symbol}: Price up {price_change_1hour:.2f}% in 1 hour")
+                except IndexError:
+                    pass
+
+        await asyncio.sleep(60)
+
+async def main(text_area=None):
+    await monitor_stocks(text_area)
 
 if __name__ == "__main__":
-    app = StockMonitorApp()
-    app.mainloop()
+    asyncio.run(main())
