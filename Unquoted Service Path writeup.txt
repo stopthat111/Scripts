@@ -1,0 +1,41 @@
+Advisory: Unquoted Service Path Vulnerability Detected in Windows Service Configuration
+________________________________________
+Overview:
+This is a known misconfiguration that can allow a local, low-privileged user to escalate privileges to SYSTEM under specific conditions. The issue is classified as a privilege escalation vulnerability and is cataloged under MITRE ATT&CK T1574.009:
+https://attack.mitre.org/techniques/T1574/009/
+________________________________________
+Technical Detail:
+The Windows Service Control Manager (SCM) parses service binary paths by splitting them at spaces unless the path is enclosed in double quotes. If the service path is unquoted and contains spaces, Windows may mistakenly attempt to execute a binary earlier in the path.
+Example vulnerable configuration:
+ImagePath: C:\Program Files\Example App\example.exe
+What SCM attempts to run:
+1.	C:\Program.exe
+2.	C:\Program Files\Example.exe
+3.	C:\Program Files\Example App\example.exe (intended)
+If an attacker can drop a malicious executable (e.g., Program.exe) in a location with weak ACLs (e.g., C:\), and the service runs under LocalSystem, the attacker could gain full system privileges upon service start.
+________________________________________
+Risk and Impact:
+•	Risk Level: High (Local Privilege Escalation)
+•	Impact if Exploited:
+o	SYSTEM-level access
+o	Potential for full machine compromise
+o	May bypass EDR if used as part of a stealth persistence chain
+________________________________________
+Recommendations:
+1.	Identify all vulnerable services
+Use PowerShell:
+Get-WmiObject win32_service |
+Where-Object {
+    $_.PathName -like "* *" -and $_.PathName -notlike '"*"'
+} | Select-Object Name, DisplayName, StartMode, PathName
+2.	Quote the affected paths
+o	Manually via Registry Editor:
+HKLM\SYSTEM\CurrentControlSet\Services\<ServiceName>\ImagePath
+o	Script with CMD or Powershell
+3.	Harden directory permissions
+Ensure standard users cannot write to:
+o	C:\
+o	C:\Program Files\
+o	Any intermediary folders used in service binary paths
+4.	Audit regularly
+Include this check as part of your system hardening or baseline compliance process.
