@@ -1,15 +1,14 @@
-# Harden SSL/TLS settings with RDMS-aware exception for TLS 1.0
-# If RDMS role is installed, TLS 1.0 remains enabled to avoid breaking services
+# SSL/TLS Hardening Script (Non-Interactive, RDMS-Aware, with Post-Change Verification)
 
-# Verify script is running as administrator
+# Check for admin rights
 If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
     [Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "❌ This script must be run as Administrator." -ForegroundColor Red
+    Write-Host "❌ Must run as administrator." -ForegroundColor Red
     exit 1
 }
 
 # Set log path
-$logPath = "C:\ProgramData\NinjaRMMAgent\Logs\ssltls-fix-rdms-aware.log"
+$logPath = "C:\ProgramData\NinjaRMMAgent\Logs\ssltls-fix-rdms-auto.log"
 if (-not (Test-Path $logPath)) {
     New-Item -ItemType File -Path $logPath -Force | Out-Null
 }
@@ -62,7 +61,6 @@ Function Set-ProtocolState {
     }
 }
 
-# Detect if RDMS is installed
 Function Is-RDMSInstalled {
     try {
         $roles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true }
@@ -70,33 +68,33 @@ Function Is-RDMSInstalled {
                $roles.Name -contains "RDS-Web-Access" -or
                $roles.Name -contains "RDS-Gateway"
     } catch {
-        Write-Host "⚠️ Unable to detect RDMS roles. Assuming not installed." -ForegroundColor Yellow
+        Write-Host "⚠️ Unable to detect RDMS roles." -ForegroundColor Yellow
         return $false
     }
 }
 
+# Determine TLS 1.0 status based on RDMS presence
 $rdmsPresent = Is-RDMSInstalled
+$tls10State = $false
 if ($rdmsPresent) {
-    Write-Host "⚠️ RDMS role detected. TLS 1.0 will remain ENABLED to avoid breaking functionality." -ForegroundColor Yellow
+    Write-Host "⚠️ RDMS detected. TLS 1.0 will remain ENABLED." -ForegroundColor Yellow
+    $tls10State = $true
 } else {
     Write-Host "✅ No RDMS roles detected. TLS 1.0 will be DISABLED." -ForegroundColor Green
 }
 
-# Desired protocol states
+# Define desired states
 $desiredStates = @{
     "SSL 2.0"  = $false
     "SSL 3.0"  = $false
-    "TLS 1.0"  = $rdmsPresent ? $true : $false
+    "TLS 1.0"  = $tls10State
     "TLS 1.1"  = $false
     "TLS 1.2"  = $true
     "TLS 1.3"  = $true
 }
 
-# Check OS support for TLS 1.3
-$tls13Supported = $false
-if ([Environment]::OSVersion.Version.Major -ge 10 -and [Environment]::OSVersion.Version.Build -ge 20348) {
-    $tls13Supported = $true
-} else {
+# Remove TLS 1.3 if unsupported
+if ([Environment]::OSVersion.Version.Major -lt 10 -or [Environment]::OSVersion.Version.Build -lt 20348) {
     $desiredStates.Remove("TLS 1.3")
 }
 
@@ -107,7 +105,7 @@ foreach ($protocol in $desiredStates.Keys) {
     $current = Get-ProtocolState -Protocol $protocol
     $desired = $desiredStates[$protocol]
 
-    Write-Host "`n${protocol}:" -ForegroundColor White
+    Write-Host "`n${protocol}:"
     foreach ($role in @("Client", "Server")) {
         $enabled = $current["$role.Enabled"]
         $disabled = $current["$role.DisabledByDefault"]
@@ -120,41 +118,32 @@ foreach ($protocol in $desiredStates.Keys) {
     }
 }
 
-# Summary
+# Apply changes automatically
 if ($changes.Count -eq 0) {
-    Write-Host "`n✅ No changes are needed. Protocols already match desired state." -ForegroundColor Green
+    Write-Host "`n✅ No changes required." -ForegroundColor Green
     Add-Content -Path $logPath -Value "$(Get-Date -Format u) - No changes required"
-    exit 0
 } else {
-    Write-Host "`n⚠️ The following protocols will be modified:" -ForegroundColor Yellow
-    foreach ($item in $changes.GetEnumerator()) {
-        $status = if ($item.Value) { "ENABLE" } else { "DISABLE" }
-        Write-Host " - $($item.Key): $status"
-    }
-
-    # Prompt for confirmation
-    $response = Read-Host "`nDo you want to apply these changes? (Y/N)"
-    if ($response -ne 'Y' -and $response -ne 'y') {
-        Write-Host "Aborted by user."
-        Add-Content -Path $logPath -Value "$(Get-Date -Format u) - Aborted by user"
-        exit 1
-    }
-
-    # Apply changes
+    Write-Host "`nApplying changes..." -ForegroundColor Yellow
     foreach ($item in $changes.GetEnumerator()) {
         Set-ProtocolState -Protocol $item.Key -Enable:$item.Value
-        Write-Host "✅ Applied changes to $($item.Key)" -ForegroundColor Green
+        Write-Host "✅ Applied $($item.Key)" -ForegroundColor Green
     }
-
-    Write-Host "`n✅ All requested changes applied. A system reboot is required." -ForegroundColor Green
     Add-Content -Path $logPath -Value "$(Get-Date -Format u) - Protocol changes applied successfully"
+    Write-Host "`n✅ All changes applied. A system reboot is required." -ForegroundColor Cyan
+}
 
-    # Optional reboot prompt
-    $doReboot = Read-Host "`nDo you want to reboot now to apply changes? (Y/N)"
-    if ($doReboot -eq 'Y' -or $doReboot -eq 'y') {
-        Write-Host "Rebooting..." -ForegroundColor Cyan
-        Restart-Computer -Force
-    } else {
-        Write-Host "⚠️ Reboot postponed. Changes will not take full effect until reboot." -ForegroundColor Yellow
+# Post-change verification output
+Write-Host "`n--- Verified SSL/TLS Protocol States After Change ---" -ForegroundColor Cyan
+
+foreach ($protocol in $desiredStates.Keys) {
+    $finalState = Get-ProtocolState -Protocol $protocol
+    Write-Host "`n${protocol}:"
+    foreach ($role in @("Client", "Server")) {
+        $enabled = $finalState["$role.Enabled"]
+        $disabled = $finalState["$role.DisabledByDefault"]
+        Write-Host "  $role - Enabled: $enabled, DisabledByDefault: $disabled"
     }
 }
+
+# Optional reboot (commented out for safety)
+# Restart-Computer -Force
