@@ -132,11 +132,7 @@ if (-not $adminUPN -or $adminUPN -notmatch '^[^@]+@[^@]+\.[^@]+$') {
 }
 
 try {
-    Connect-ExchangeOnline `
-    -UserPrincipalName $adminUPN `
-    -ShowBanner:$false `
-    -ShowProgress:$true `
-    -UseWebLogin
+    Connect-ExchangeOnline -UserPrincipalName $adminUPN -ShowBanner:$false -ShowProgress:$true
 }
 catch {
     Write-Host "ERROR: Failed to connect to Exchange Online: $($_.Exception.Message)"
